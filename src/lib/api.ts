@@ -1,5 +1,15 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Product, Vendor, VendorPricing, Order, OrderItem, OrderTimeline, Post } from './types';
+import { Product, Vendor, VendorPricing, Order, OrderItem, OrderTimeline, Post, TurnaroundOption, QuantitySlab, Addon } from './types';
+
+// Helper to transform DB product to typed Product
+function transformProduct(data: any): Product {
+  return {
+    ...data,
+    turnaround_options: (data.turnaround_options || []) as TurnaroundOption[],
+    quantity_slabs: (data.quantity_slabs || []) as QuantitySlab[],
+    addons: (data.addons || []) as Addon[],
+  };
+}
 
 // Products
 export async function fetchProducts(): Promise<Product[]> {
@@ -10,7 +20,7 @@ export async function fetchProducts(): Promise<Product[]> {
     .order('created_at', { ascending: true });
   
   if (error) throw error;
-  return data || [];
+  return (data || []).map(transformProduct);
 }
 
 export async function fetchProductById(id: string): Promise<Product | null> {
@@ -21,7 +31,7 @@ export async function fetchProductById(id: string): Promise<Product | null> {
     .maybeSingle();
   
   if (error) throw error;
-  return data;
+  return data ? transformProduct(data) : null;
 }
 
 // Vendors
@@ -196,7 +206,10 @@ export async function fetchPosts(): Promise<Post[]> {
     .order('created_at', { ascending: false });
   
   if (error) throw error;
-  return data || [];
+  return (data || []).map((post: any) => ({
+    ...post,
+    products: post.products ? transformProduct(post.products) : undefined,
+  })) as Post[];
 }
 
 export async function createPost(post: {
