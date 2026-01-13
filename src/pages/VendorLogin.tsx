@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, LogIn, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useApp } from '@/contexts/AppContext';
-import { getVendors, saveVendors, Vendor } from '@/lib/mockData';
+import { fetchVendorByEmail, createVendor } from '@/lib/api';
 
 export default function VendorLogin() {
   const navigate = useNavigate();
@@ -18,26 +18,38 @@ export default function VendorLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    const vendors = getVendors();
-    const vendor = vendors.find(v => v.email === email && v.password === password);
-    
-    if (vendor) {
-      setCurrentVendor(vendor);
-      toast({ title: "Welcome back!", description: `Logged in as ${vendor.name}` });
-      navigate('/vendor/dashboard');
-    } else {
+  const handleLogin = async () => {
+    setLoading(true);
+    try {
+      const vendor = await fetchVendorByEmail(email);
+      
+      if (vendor) {
+        // For demo, we just check email exists (no real password check in DB for MVP)
+        setCurrentVendor(vendor);
+        toast({ title: "Welcome back!", description: `Logged in as ${vendor.name}` });
+        navigate('/vendor/dashboard');
+      } else {
+        toast({ 
+          title: "Login Failed", 
+          description: "No vendor found with this email", 
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
       toast({ 
         title: "Login Failed", 
-        description: "Invalid email or password", 
+        description: "An error occurred", 
         variant: "destructive" 
       });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleCreateAccount = () => {
-    if (!name || !email || !password) {
+  const handleCreateAccount = async () => {
+    if (!name || !email) {
       toast({ 
         title: "Missing Information", 
         description: "Please fill in all fields", 
@@ -46,36 +58,42 @@ export default function VendorLogin() {
       return;
     }
 
-    const vendors = getVendors();
-    if (vendors.some(v => v.email === email)) {
+    setLoading(true);
+    try {
+      const existingVendor = await fetchVendorByEmail(email);
+      if (existingVendor) {
+        toast({ 
+          title: "Account Exists", 
+          description: "An account with this email already exists", 
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      const newVendor = await createVendor({
+        name,
+        email,
+        city: null,
+        address: null,
+        capabilities: [],
+        categories: [],
+        rush_fee: 500,
+        turnaround_days: 3,
+        onboarding_complete: false,
+      });
+
+      setCurrentVendor(newVendor);
+      toast({ title: "Account Created!", description: "Complete your onboarding to start receiving orders" });
+      navigate('/vendor/onboarding');
+    } catch (error) {
       toast({ 
-        title: "Account Exists", 
-        description: "An account with this email already exists", 
+        title: "Error", 
+        description: "Failed to create account", 
         variant: "destructive" 
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const newVendor: Vendor = {
-      id: `vendor-${Date.now()}`,
-      name,
-      email,
-      password,
-      city: '',
-      address: '',
-      capabilities: [],
-      categories: [],
-      pricingTable: [],
-      rushFee: 0,
-      turnaroundDays: 3,
-      onboardingComplete: false,
-    };
-
-    saveVendors([...vendors, newVendor]);
-    setCurrentVendor(newVendor);
-    
-    toast({ title: "Account Created!", description: "Complete your onboarding to start receiving orders" });
-    navigate('/vendor/onboarding');
   };
 
   const handleDemoLogin = () => {
@@ -163,8 +181,11 @@ export default function VendorLogin() {
               onClick={isLogin ? handleLogin : handleCreateAccount}
               className="w-full"
               size="lg"
+              disabled={loading}
             >
-              {isLogin ? (
+              {loading ? (
+                'Loading...'
+              ) : isLogin ? (
                 <>
                   <LogIn className="h-4 w-4 mr-2" />
                   Sign In
@@ -186,7 +207,7 @@ export default function VendorLogin() {
                   Use demo credentials
                 </button>
                 <p className="text-xs text-muted-foreground mt-1">
-                  demo@vendor.com / demo123
+                  demo@vendor.com
                 </p>
               </div>
             )}

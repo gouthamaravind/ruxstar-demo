@@ -8,7 +8,16 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useApp } from '@/contexts/AppContext';
-import { getVendors, saveVendors, CATEGORIES, PRINT_TYPES, Vendor, PricingEntry } from '@/lib/mockData';
+import { createVendor, updateVendor, upsertVendorPricing } from '@/lib/api';
+import { CATEGORIES, PRINT_TYPES, formatINR } from '@/lib/types';
+
+interface PricingEntry {
+  product_type: string;
+  print_type: string;
+  price_1_to_10: number;
+  price_11_to_50: number;
+  price_51_to_200: number;
+}
 
 const STEPS = [
   { id: 1, title: 'Business Info', icon: Building2 },
@@ -21,19 +30,19 @@ const STEPS = [
 export default function VendorOnboarding() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { setCurrentVendor } = useApp();
+  const { currentVendor, setCurrentVendor } = useApp();
   
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    city: '',
-    address: '',
-    capabilities: [] as string[],
-    categories: [] as string[],
-    rushFee: 25,
-    turnaroundDays: 3,
+    name: currentVendor?.name || '',
+    email: currentVendor?.email || '',
+    city: currentVendor?.city || '',
+    address: currentVendor?.address || '',
+    capabilities: currentVendor?.capabilities || [] as string[],
+    categories: currentVendor?.categories || [] as string[],
+    rushFee: currentVendor?.rush_fee || 500,
+    turnaroundDays: currentVendor?.turnaround_days || 3,
   });
   const [pricingTable, setPricingTable] = useState<PricingEntry[]>([]);
 
@@ -52,60 +61,91 @@ export default function VendorOnboarding() {
 
   const updatePricing = (productType: string, printType: string, field: string, value: number) => {
     setPricingTable(prev => {
-      const existing = prev.find(p => p.productType === productType && p.printType === printType);
+      const existing = prev.find(p => p.product_type === productType && p.print_type === printType);
       if (existing) {
         return prev.map(p => 
-          p.productType === productType && p.printType === printType
+          p.product_type === productType && p.print_type === printType
             ? { ...p, [field]: value }
             : p
         );
       }
       return [...prev, {
-        productType,
-        printType,
-        price1to10: field === 'price1to10' ? value : 0,
-        price11to50: field === 'price11to50' ? value : 0,
-        price51to200: field === 'price51to200' ? value : 0,
+        product_type: productType,
+        print_type: printType,
+        price_1_to_10: field === 'price_1_to_10' ? value : 0,
+        price_11_to_50: field === 'price_11_to_50' ? value : 0,
+        price_51_to_200: field === 'price_51_to_200' ? value : 0,
       }];
     });
   };
 
   const getPricingValue = (productType: string, printType: string, field: string): number => {
-    const entry = pricingTable.find(p => p.productType === productType && p.printType === printType);
+    const entry = pricingTable.find(p => p.product_type === productType && p.print_type === printType);
     return entry ? (entry as any)[field] : 0;
   };
 
-  const handleSubmit = () => {
-    const newVendor: Vendor = {
-      id: `vendor-${Date.now()}`,
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
-      city: formData.city,
-      address: formData.address,
-      capabilities: formData.capabilities,
-      categories: formData.categories,
-      pricingTable,
-      rushFee: formData.rushFee,
-      turnaroundDays: formData.turnaroundDays,
-      onboardingComplete: true,
-    };
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      let vendor = currentVendor;
+      
+      if (vendor) {
+        // Update existing vendor
+        vendor = await updateVendor(vendor.id, {
+          name: formData.name,
+          email: formData.email,
+          city: formData.city,
+          address: formData.address,
+          capabilities: formData.capabilities,
+          categories: formData.categories,
+          rush_fee: formData.rushFee,
+          turnaround_days: formData.turnaroundDays,
+          onboarding_complete: true,
+        });
+      } else {
+        // Create new vendor
+        vendor = await createVendor({
+          name: formData.name,
+          email: formData.email,
+          city: formData.city,
+          address: formData.address,
+          capabilities: formData.capabilities,
+          categories: formData.categories,
+          rush_fee: formData.rushFee,
+          turnaround_days: formData.turnaroundDays,
+          onboarding_complete: true,
+        });
+      }
 
-    const vendors = getVendors();
-    saveVendors([...vendors, newVendor]);
-    setCurrentVendor(newVendor);
+      // Save pricing if any
+      if (pricingTable.length > 0) {
+        const pricingWithVendorId = pricingTable.map(p => ({
+          ...p,
+          vendor_id: vendor!.id,
+        }));
+        await upsertVendorPricing(pricingWithVendorId);
+      }
 
-    toast({
-      title: "Onboarding Complete! 🎉",
-      description: "Welcome to RuxStar! Your vendor account is ready.",
-    });
-
-    navigate('/vendor/dashboard');
+      setCurrentVendor(vendor);
+      toast({
+        title: "Onboarding Complete! 🎉",
+        description: "Welcome to RuxStar! Your vendor account is ready.",
+      });
+      navigate('/vendor/dashboard');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to complete onboarding",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const canProceed = () => {
     switch (step) {
-      case 1: return formData.name && formData.email && formData.password && formData.city;
+      case 1: return formData.name && formData.email && formData.city;
       case 2: return formData.capabilities.length > 0;
       case 3: return formData.categories.length > 0;
       case 4: return true;
@@ -183,34 +223,22 @@ export default function VendorOnboarding() {
                     className="mt-1.5"
                   />
                 </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Email *</Label>
-                    <Input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => updateFormData('email', e.target.value)}
-                      placeholder="contact@shop.com"
-                      className="mt-1.5"
-                    />
-                  </div>
-                  <div>
-                    <Label>Password *</Label>
-                    <Input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => updateFormData('password', e.target.value)}
-                      placeholder="••••••••"
-                      className="mt-1.5"
-                    />
-                  </div>
+                <div>
+                  <Label>Email *</Label>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => updateFormData('email', e.target.value)}
+                    placeholder="contact@shop.com"
+                    className="mt-1.5"
+                  />
                 </div>
                 <div>
                   <Label>City *</Label>
                   <Input
                     value={formData.city}
                     onChange={(e) => updateFormData('city', e.target.value)}
-                    placeholder="Los Angeles"
+                    placeholder="Mumbai"
                     className="mt-1.5"
                   />
                 </div>
@@ -219,7 +247,7 @@ export default function VendorOnboarding() {
                   <Input
                     value={formData.address}
                     onChange={(e) => updateFormData('address', e.target.value)}
-                    placeholder="123 Print Street, LA 90001"
+                    placeholder="123 Print Street, Mumbai 400001"
                     className="mt-1.5"
                   />
                 </div>
@@ -279,11 +307,11 @@ export default function VendorOnboarding() {
             {step === 4 && (
               <div>
                 <h2 className="text-xl font-semibold mb-2">Pricing Table</h2>
-                <p className="text-muted-foreground text-sm mb-6">Set your prices per product and print type</p>
+                <p className="text-muted-foreground text-sm mb-6">Set your prices per product and print type (in ₹)</p>
                 
                 <div className="mb-6 grid sm:grid-cols-2 gap-4">
                   <div>
-                    <Label>Rush Fee ($)</Label>
+                    <Label>Rush Fee (₹)</Label>
                     <Input
                       type="number"
                       value={formData.rushFee}
@@ -323,28 +351,28 @@ export default function VendorOnboarding() {
                             <td className="py-2 px-1">
                               <Input
                                 type="number"
-                                placeholder="$"
+                                placeholder="₹"
                                 className="w-20 text-center"
-                                value={getPricingValue(cat, print, 'price1to10') || ''}
-                                onChange={(e) => updatePricing(cat, print, 'price1to10', parseFloat(e.target.value) || 0)}
+                                value={getPricingValue(cat, print, 'price_1_to_10') || ''}
+                                onChange={(e) => updatePricing(cat, print, 'price_1_to_10', parseFloat(e.target.value) || 0)}
                               />
                             </td>
                             <td className="py-2 px-1">
                               <Input
                                 type="number"
-                                placeholder="$"
+                                placeholder="₹"
                                 className="w-20 text-center"
-                                value={getPricingValue(cat, print, 'price11to50') || ''}
-                                onChange={(e) => updatePricing(cat, print, 'price11to50', parseFloat(e.target.value) || 0)}
+                                value={getPricingValue(cat, print, 'price_11_to_50') || ''}
+                                onChange={(e) => updatePricing(cat, print, 'price_11_to_50', parseFloat(e.target.value) || 0)}
                               />
                             </td>
                             <td className="py-2 px-1">
                               <Input
                                 type="number"
-                                placeholder="$"
+                                placeholder="₹"
                                 className="w-20 text-center"
-                                value={getPricingValue(cat, print, 'price51to200') || ''}
-                                onChange={(e) => updatePricing(cat, print, 'price51to200', parseFloat(e.target.value) || 0)}
+                                value={getPricingValue(cat, print, 'price_51_to_200') || ''}
+                                onChange={(e) => updatePricing(cat, print, 'price_51_to_200', parseFloat(e.target.value) || 0)}
                               />
                             </td>
                           </tr>
@@ -386,7 +414,7 @@ export default function VendorOnboarding() {
                   </div>
                   <div className="p-4 rounded-xl bg-muted/50">
                     <h3 className="font-medium mb-2">Pricing</h3>
-                    <p className="text-sm">Rush fee: ${formData.rushFee} • Turnaround: {formData.turnaroundDays} days</p>
+                    <p className="text-sm">Rush fee: {formatINR(formData.rushFee)} • Turnaround: {formData.turnaroundDays} days</p>
                     <p className="text-sm text-muted-foreground">{pricingTable.length} pricing entries configured</p>
                   </div>
                 </div>
@@ -409,8 +437,8 @@ export default function VendorOnboarding() {
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               ) : (
-                <Button onClick={handleSubmit}>
-                  Complete Onboarding
+                <Button onClick={handleSubmit} disabled={loading}>
+                  {loading ? 'Saving...' : 'Complete Onboarding'}
                   <Check className="h-4 w-4 ml-2" />
                 </Button>
               )}
