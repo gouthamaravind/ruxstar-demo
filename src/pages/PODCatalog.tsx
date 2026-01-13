@@ -8,7 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { fetchProducts } from '@/lib/api';
-import { Product, CATEGORIES, PRINT_TYPES, TURNAROUNDS, CATEGORY_ICONS, formatINR } from '@/lib/types';
+import { Product, CATEGORY_ICONS, formatINR } from '@/lib/types';
+
+// Only these turnaround options
+const TURNAROUND_OPTIONS = ['Same Day', '24 Hours'];
 
 export default function PODCatalog() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -32,10 +35,46 @@ export default function PODCatalog() {
     return counts;
   }, [products]);
 
-  // Get unique categories from products (in case DB has different naming)
+  // Get unique categories from products
   const uniqueCategories = useMemo(() => {
     return [...new Set(products.map(p => p.category))].sort();
   }, [products]);
+
+  // Get products for the selected category (or all if none selected)
+  const categoryProducts = useMemo(() => {
+    if (!selectedCategory) return products;
+    return products.filter(p => p.category === selectedCategory);
+  }, [products, selectedCategory]);
+
+  // Get available print types for selected category
+  const availablePrintTypes = useMemo(() => {
+    const types = new Set<string>();
+    categoryProducts.forEach(p => {
+      p.supported_print_types?.forEach(t => types.add(t));
+    });
+    return [...types].sort();
+  }, [categoryProducts]);
+
+  // Get available turnarounds for selected category (filtered to only Same Day / 24 Hours)
+  const availableTurnarounds = useMemo(() => {
+    const turnarounds = new Set<string>();
+    categoryProducts.forEach(p => {
+      if (p.turnaround && TURNAROUND_OPTIONS.includes(p.turnaround)) {
+        turnarounds.add(p.turnaround);
+      }
+    });
+    return TURNAROUND_OPTIONS.filter(t => turnarounds.has(t));
+  }, [categoryProducts]);
+
+  // Reset filters when they become unavailable after category change
+  useEffect(() => {
+    if (selectedPrintType && !availablePrintTypes.includes(selectedPrintType)) {
+      setSelectedPrintType('');
+    }
+    if (selectedTurnaround && !availableTurnarounds.includes(selectedTurnaround)) {
+      setSelectedTurnaround('');
+    }
+  }, [selectedCategory, availablePrintTypes, availableTurnarounds]);
 
   const filteredProducts = products.filter((product) => {
     if (selectedCategory && product.category !== selectedCategory) return false;
@@ -143,13 +182,14 @@ export default function PODCatalog() {
                 <div className="space-y-5">
                   <FilterSection 
                     title="Print Type" 
-                    options={PRINT_TYPES} 
+                    options={availablePrintTypes} 
                     selected={selectedPrintType} 
                     onSelect={setSelectedPrintType}
+                    emptyMessage="Select a category first"
                   />
                   <FilterSection 
                     title="Turnaround" 
-                    options={TURNAROUNDS} 
+                    options={availableTurnarounds} 
                     selected={selectedTurnaround} 
                     onSelect={setSelectedTurnaround}
                     showIcon
@@ -226,8 +266,8 @@ export default function PODCatalog() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-                    <FilterSection title="Print Type" options={PRINT_TYPES} selected={selectedPrintType} onSelect={setSelectedPrintType} inline />
-                    <FilterSection title="Turnaround" options={TURNAROUNDS} selected={selectedTurnaround} onSelect={setSelectedTurnaround} inline showIcon />
+                    <FilterSection title="Print Type" options={availablePrintTypes} selected={selectedPrintType} onSelect={setSelectedPrintType} inline emptyMessage="Select a category" />
+                    <FilterSection title="Turnaround" options={availableTurnarounds} selected={selectedTurnaround} onSelect={setSelectedTurnaround} inline showIcon emptyMessage="Not available" />
                     {activeFiltersCount > 0 && (
                       <Button variant="ghost" onClick={clearFilters} size="sm" className="w-full">
                         Clear All Filters
@@ -299,14 +339,16 @@ function FilterSection({
   selected, 
   onSelect, 
   inline = false,
-  showIcon = false 
+  showIcon = false,
+  emptyMessage = 'No options available'
 }: { 
-  title: string; 
+  title: string;
   options: string[]; 
   selected: string; 
   onSelect: (value: string) => void; 
   inline?: boolean;
   showIcon?: boolean;
+  emptyMessage?: string;
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -314,22 +356,26 @@ function FilterSection({
     return (
       <div>
         <h3 className="font-medium text-sm mb-2">{title}</h3>
-        <div className="flex flex-wrap gap-2">
-          {options.map((option) => (
-            <button 
-              key={option} 
-              onClick={() => onSelect(selected === option ? '' : option)} 
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                selected === option 
-                  ? 'bg-primary text-primary-foreground shadow-sm' 
-                  : 'bg-muted hover:bg-muted/80 text-foreground'
-              }`}
-            >
-              {showIcon && <Clock className="h-3 w-3 inline mr-1" />}
-              {option}
-            </button>
-          ))}
-        </div>
+        {options.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{emptyMessage}</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {options.map((option) => (
+              <button 
+                key={option} 
+                onClick={() => onSelect(selected === option ? '' : option)} 
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  selected === option 
+                    ? 'bg-primary text-primary-foreground shadow-sm' 
+                    : 'bg-muted hover:bg-muted/80 text-foreground'
+                }`}
+              >
+                {showIcon && <Clock className="h-3 w-3 inline mr-1" />}
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -342,20 +388,24 @@ function FilterSection({
         <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </CollapsibleTrigger>
       <CollapsibleContent className="pt-2 space-y-1">
-        {options.map((option) => (
-          <button 
-            key={option} 
-            onClick={() => onSelect(selected === option ? '' : option)} 
-            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-2 ${
-              selected === option 
-                ? 'bg-primary/10 text-primary font-medium' 
-                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {showIcon && <Clock className="h-3.5 w-3.5" />}
-            {option}
-          </button>
-        ))}
+        {options.length === 0 ? (
+          <p className="text-xs text-muted-foreground px-3 py-2">{emptyMessage}</p>
+        ) : (
+          options.map((option) => (
+            <button 
+              key={option} 
+              onClick={() => onSelect(selected === option ? '' : option)} 
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-2 ${
+                selected === option 
+                  ? 'bg-primary/10 text-primary font-medium' 
+                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {showIcon && <Clock className="h-3.5 w-3.5" />}
+              {option}
+            </button>
+          ))
+        )}
       </CollapsibleContent>
     </Collapsible>
   );
