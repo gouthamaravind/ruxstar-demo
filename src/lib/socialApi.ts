@@ -82,6 +82,108 @@ export async function getUserLikedPosts(userId: string): Promise<string[]> {
   return data?.map(l => l.post_id) || [];
 }
 
+// Bookmark a post
+export async function bookmarkPost(postId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('bookmarks')
+    .insert({ post_id: postId, user_id: userId });
+  
+  if (error) {
+    if (error.code === '23505') return false; // Already bookmarked
+    throw error;
+  }
+  return true;
+}
+
+// Remove bookmark
+export async function unbookmarkPost(postId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('bookmarks')
+    .delete()
+    .eq('post_id', postId)
+    .eq('user_id', userId);
+  
+  if (error) throw error;
+  return true;
+}
+
+// Get user's bookmarked posts
+export async function getUserBookmarks(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('post_id')
+    .eq('user_id', userId);
+  
+  if (error) throw error;
+  return data?.map(b => b.post_id) || [];
+}
+
+// Repost a post
+export async function repost(postId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('reposts')
+    .insert({ post_id: postId, user_id: userId });
+  
+  if (error) {
+    if (error.code === '23505') return false; // Already reposted
+    throw error;
+  }
+  
+  // Increment reposts count
+  const { data: post } = await supabase
+    .from('posts')
+    .select('reposts')
+    .eq('id', postId)
+    .single();
+  
+  if (post) {
+    await supabase
+      .from('posts')
+      .update({ reposts: (post.reposts || 0) + 1 })
+      .eq('id', postId);
+  }
+  
+  return true;
+}
+
+// Remove repost
+export async function unrepost(postId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('reposts')
+    .delete()
+    .eq('post_id', postId)
+    .eq('user_id', userId);
+  
+  if (error) throw error;
+  
+  // Decrement reposts count
+  const { data: post } = await supabase
+    .from('posts')
+    .select('reposts')
+    .eq('id', postId)
+    .single();
+  
+  if (post && post.reposts > 0) {
+    await supabase
+      .from('posts')
+      .update({ reposts: post.reposts - 1 })
+      .eq('id', postId);
+  }
+  
+  return true;
+}
+
+// Get user's reposts
+export async function getUserReposts(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('reposts')
+    .select('post_id')
+    .eq('user_id', userId);
+  
+  if (error) throw error;
+  return data?.map(r => r.post_id) || [];
+}
+
 // Upload media for social post
 export async function uploadSocialMedia(
   file: File, 

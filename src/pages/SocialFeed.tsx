@@ -2,20 +2,24 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Heart, MessageCircle, Repeat2, Share, Send, Image, 
-  BarChart3, Video, X, Loader2, Play,
-  Plus, Bookmark, MoreHorizontal
+  Image, BarChart3, Video, X, Loader2, Play,
+  Plus, Send
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useApp } from '@/contexts/AppContext';
 import { fetchPosts } from '@/lib/api';
-import { likePost, unlikePost, getUserLikedPosts, uploadSocialMedia, createSocialPost } from '@/lib/socialApi';
-import { Post, formatINR } from '@/lib/types';
+import { 
+  likePost, unlikePost, getUserLikedPosts, 
+  uploadSocialMedia, createSocialPost,
+  getUserBookmarks, bookmarkPost, unbookmarkPost,
+  getUserReposts, repost, unrepost
+} from '@/lib/socialApi';
+import { Post } from '@/lib/types';
 import { LoginRequiredDialog } from '@/components/LoginRequiredDialog';
+import { PostCard } from '@/components/social/PostCard';
 import logoImage from '@/assets/logo.png';
 
 type PostType = 'text' | 'image' | 'poll' | 'video';
@@ -36,6 +40,8 @@ export default function SocialFeed() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [userLikedPosts, setUserLikedPosts] = useState<Set<string>>(new Set());
+  const [userBookmarks, setUserBookmarks] = useState<Set<string>>(new Set());
+  const [userReposts, setUserReposts] = useState<Set<string>>(new Set());
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [loginAction, setLoginAction] = useState('');
   
@@ -61,10 +67,16 @@ export default function SocialFeed() {
       const postsData = await fetchPosts();
       setPosts(postsData);
       
-      // Load user's liked posts
+      // Load user's liked posts, bookmarks, reposts
       if (user?.id) {
-        const likedPostIds = await getUserLikedPosts(user.id);
+        const [likedPostIds, bookmarkIds, repostIds] = await Promise.all([
+          getUserLikedPosts(user.id),
+          getUserBookmarks(user.id),
+          getUserReposts(user.id)
+        ]);
         setUserLikedPosts(new Set(likedPostIds));
+        setUserBookmarks(new Set(bookmarkIds));
+        setUserReposts(new Set(repostIds));
       }
     } catch (error) {
       console.error('Failed to load posts:', error);
@@ -119,7 +131,7 @@ export default function SocialFeed() {
         userAvatar: profile?.avatar_url || '👤',
       });
       
-      setPosts([{ ...newPost, likes: 0, comments: 0, reposts: 0 } as Post, ...posts]);
+      setPosts([{ ...newPost, likes: 0, comments: 0, reposts: 0, profile_id: profile?.id || null } as Post, ...posts]);
       resetForm();
       toast({ title: "Posted! 🎉", description: "Your post is now live" });
     } catch (error: any) {
@@ -166,6 +178,58 @@ export default function SocialFeed() {
       }
     } catch (error) {
       console.error('Failed to update like:', error);
+    }
+  };
+
+  const handleBookmark = async (postId: string) => {
+    if (requireLogin('bookmark this post')) return;
+    if (!user?.id) return;
+    
+    const isBookmarked = userBookmarks.has(postId);
+    
+    try {
+      if (isBookmarked) {
+        await unbookmarkPost(postId, user.id);
+        setUserBookmarks(prev => {
+          const next = new Set(prev);
+          next.delete(postId);
+          return next;
+        });
+        toast({ title: "Removed from bookmarks" });
+      } else {
+        await bookmarkPost(postId, user.id);
+        setUserBookmarks(prev => new Set(prev).add(postId));
+        toast({ title: "Added to bookmarks" });
+      }
+    } catch (error) {
+      console.error('Failed to update bookmark:', error);
+    }
+  };
+
+  const handleRepost = async (postId: string) => {
+    if (requireLogin('repost this')) return;
+    if (!user?.id) return;
+    
+    const isReposted = userReposts.has(postId);
+    
+    try {
+      if (isReposted) {
+        await unrepost(postId, user.id);
+        setUserReposts(prev => {
+          const next = new Set(prev);
+          next.delete(postId);
+          return next;
+        });
+        setPosts(posts.map(p => p.id === postId ? { ...p, reposts: Math.max(0, p.reposts - 1) } : p));
+        toast({ title: "Repost removed" });
+      } else {
+        await repost(postId, user.id);
+        setUserReposts(prev => new Set(prev).add(postId));
+        setPosts(posts.map(p => p.id === postId ? { ...p, reposts: p.reposts + 1 } : p));
+        toast({ title: "Reposted! 🔁" });
+      }
+    } catch (error) {
+      console.error('Failed to update repost:', error);
     }
   };
 
@@ -276,7 +340,11 @@ export default function SocialFeed() {
             <div className="flex gap-3">
               <div className="w-11 h-11 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-xl flex-shrink-0">
                 {isUserLoggedIn && profile ? (
-                  profile.username?.charAt(0).toUpperCase() || '👤'
+                  profile.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    profile.username?.charAt(0).toUpperCase() || '👤'
+                  )
                 ) : '👤'}
               </div>
               <div className="flex-1">
@@ -501,12 +569,17 @@ export default function SocialFeed() {
                 post={post} 
                 index={index}
                 isLiked={userLikedPosts.has(post.id)}
+                isBookmarked={userBookmarks.has(post.id)}
+                isReposted={userReposts.has(post.id)}
                 onLike={() => handleLike(post.id)}
+                onBookmark={() => handleBookmark(post.id)}
+                onRepost={() => handleRepost(post.id)}
                 onRequireLogin={() => {
                   setLoginAction('interact with posts');
                   setShowLoginDialog(true);
                 }}
                 isUserLoggedIn={isUserLoggedIn}
+                userId={user?.id}
                 formatTime={formatTime}
               />
             ))}
@@ -514,144 +587,5 @@ export default function SocialFeed() {
         )}
       </div>
     </div>
-  );
-}
-
-function PostCard({ 
-  post, 
-  index, 
-  isLiked,
-  onLike, 
-  onRequireLogin,
-  isUserLoggedIn,
-  formatTime 
-}: { 
-  post: Post; 
-  index: number;
-  isLiked: boolean;
-  onLike: () => void;
-  onRequireLogin: () => void;
-  isUserLoggedIn: boolean;
-  formatTime: (ts: string) => string;
-}) {
-  const [saved, setSaved] = useState(false);
-
-  const handleAction = (action: () => void) => {
-    if (!isUserLoggedIn) {
-      onRequireLogin();
-      return;
-    }
-    action();
-  };
-
-  return (
-    <motion.article 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      transition={{ delay: index * 0.03 }} 
-      className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden hover:border-border/80 transition-colors"
-    >
-      {/* Header */}
-      <div className="p-4 pb-0">
-        <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-xl flex-shrink-0">
-            {post.user_avatar}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold hover:underline cursor-pointer">@{post.username}</span>
-              <span className="text-muted-foreground text-sm">· {formatTime(post.created_at)}</span>
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-4 py-3">
-        <p className="text-foreground whitespace-pre-wrap leading-relaxed">{post.content}</p>
-      </div>
-
-      {/* Media */}
-      {post.media && post.media.length > 0 && (
-        <div className="px-4 pb-3">
-          <div className="rounded-xl overflow-hidden border border-border">
-            <img 
-              src={post.media[0]} 
-              alt="Post media" 
-              className="w-full max-h-96 object-cover"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* POD Product Card */}
-      {post.pod_product_id && post.products && (
-        <div className="mx-4 mb-3 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl p-4 border border-border">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-xl bg-background flex items-center justify-center text-3xl shadow-sm">
-              {post.pod_design_preview || post.products.image}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold truncate">{post.products.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {post.pod_print_type} • From {formatINR(post.products.base_price)}
-              </p>
-            </div>
-            <Button asChild size="sm" className="shrink-0">
-              <Link to={`/pod/order?product=${post.pod_product_id}`}>Order</Link>
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="px-4 py-3 border-t border-border">
-        <div className="flex items-center justify-between">
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={onLike}
-            className={`flex items-center gap-2 transition-colors ${
-              isLiked ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'
-            }`}
-          >
-            <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
-            <span className="text-sm font-medium">{post.likes}</span>
-          </motion.button>
-          
-          <button 
-            onClick={() => handleAction(() => {})}
-            className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-          >
-            <MessageCircle className="h-5 w-5" />
-            <span className="text-sm font-medium">{post.comments}</span>
-          </button>
-          
-          <button 
-            onClick={() => handleAction(() => {})}
-            className="flex items-center gap-2 text-muted-foreground hover:text-green-500 transition-colors"
-          >
-            <Repeat2 className="h-5 w-5" />
-            <span className="text-sm font-medium">{post.reposts}</span>
-          </button>
-          
-          <div className="flex items-center gap-1">
-            <button 
-              onClick={() => handleAction(() => setSaved(!saved))}
-              className={`p-2 rounded-full transition-colors ${
-                saved ? 'text-primary' : 'text-muted-foreground hover:text-primary'
-              }`}
-            >
-              <Bookmark className={`h-5 w-5 ${saved ? 'fill-current' : ''}`} />
-            </button>
-            <button className="p-2 rounded-full text-muted-foreground hover:text-primary transition-colors">
-              <Share className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </motion.article>
   );
 }
