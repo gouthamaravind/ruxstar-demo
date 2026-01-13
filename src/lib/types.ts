@@ -106,6 +106,7 @@ export interface Order {
 export interface Post {
   id: string;
   user_id: string | null;
+  profile_id: string | null;
   username: string;
   user_avatar: string;
   content: string;
