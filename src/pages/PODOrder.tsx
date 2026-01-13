@@ -443,30 +443,33 @@ export default function PODOrder() {
                           Turnaround Time
                         </Label>
                         <div className="grid sm:grid-cols-3 gap-3">
-                          {(selectedProduct.turnaround_options as TurnaroundOption[]).map((opt) => (
-                            <button
-                              key={opt.label}
-                              onClick={() => setSelectedTurnaround(opt)}
-                              className={`p-4 rounded-xl border text-left transition-all ${
-                                selectedTurnaround?.label === opt.label
-                                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                                  : 'border-border hover:border-primary/50'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-medium">{opt.label}</span>
-                                {selectedTurnaround?.label === opt.label && (
-                                  <Check className="h-4 w-4 text-primary" />
+                          {(selectedProduct.turnaround_options as TurnaroundOption[]).map((opt) => {
+                            const isSelected = selectedTurnaround?.label === opt.label && selectedTurnaround?.days === opt.days;
+                            return (
+                              <button
+                                key={`${opt.label}-${opt.days}`}
+                                onClick={() => setSelectedTurnaround(opt)}
+                                className={`p-4 rounded-xl border-2 text-left transition-all ${
+                                  isSelected
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-muted hover:border-primary/50 bg-background'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium">{opt.label}</span>
+                                  {isSelected && (
+                                    <Check className="h-4 w-4 text-primary" />
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">{opt.days} days</p>
+                                {opt.price_multiplier > 1 && (
+                                  <Badge variant="secondary" className="mt-2 text-xs">
+                                    +{Math.round((opt.price_multiplier - 1) * 100)}%
+                                  </Badge>
                                 )}
-                              </div>
-                              <p className="text-xs text-muted-foreground">{opt.days} days</p>
-                              {opt.price_multiplier > 1 && (
-                                <Badge variant="secondary" className="mt-2 text-xs">
-                                  +{Math.round((opt.price_multiplier - 1) * 100)}%
-                                </Badge>
-                              )}
-                            </button>
-                          ))}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
