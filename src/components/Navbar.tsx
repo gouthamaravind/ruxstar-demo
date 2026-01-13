@@ -5,6 +5,7 @@ import { Search, Menu, X, User, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ModeSwitch } from './ModeSwitch';
+import { ThemeToggle } from './ThemeToggle';
 import { useApp } from '@/contexts/AppContext';
 
 export function Navbar() {
@@ -58,8 +59,9 @@ export function Navbar() {
             <ModeSwitch />
           </div>
 
-          {/* Auth Buttons - Desktop */}
+          {/* Theme Toggle & Auth Buttons - Desktop */}
           <div className="hidden md:flex items-center gap-2">
+            <ThemeToggle />
             {isVendorLoggedIn ? (
               <>
                 <Button variant="ghost" asChild>
@@ -79,13 +81,16 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-muted"
-          >
-            {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          {/* Mobile: Theme Toggle + Menu Button */}
+          <div className="flex items-center gap-1 md:hidden">
+            <ThemeToggle />
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2 rounded-lg hover:bg-muted"
+            >
+              {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
