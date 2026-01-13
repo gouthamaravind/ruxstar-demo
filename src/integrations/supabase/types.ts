@@ -161,6 +161,7 @@ export type Database = {
           pod_design_preview: string | null
           pod_print_type: string | null
           pod_product_id: string | null
+          profile_id: string | null
           reposts: number | null
           user_avatar: string | null
           user_id: string | null
@@ -176,6 +177,7 @@ export type Database = {
           pod_design_preview?: string | null
           pod_print_type?: string | null
           pod_product_id?: string | null
+          profile_id?: string | null
           reposts?: number | null
           user_avatar?: string | null
           user_id?: string | null
@@ -191,6 +193,7 @@ export type Database = {
           pod_design_preview?: string | null
           pod_print_type?: string | null
           pod_product_id?: string | null
+          profile_id?: string | null
           reposts?: number | null
           user_avatar?: string | null
           user_id?: string | null
@@ -202,6 +205,13 @@ export type Database = {
             columns: ["pod_product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -274,6 +284,74 @@ export type Database = {
           variant_type?: string | null
         }
         Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      user_likes: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vendor_pricing: {
         Row: {

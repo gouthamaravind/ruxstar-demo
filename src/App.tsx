@@ -12,6 +12,8 @@ import VendorOnboarding from "./pages/VendorOnboarding";
 import VendorLogin from "./pages/VendorLogin";
 import VendorDashboard from "./pages/VendorDashboard";
 import SocialFeed from "./pages/SocialFeed";
+import UserLogin from "./pages/UserLogin";
+import UserProfile from "./pages/UserProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,8 @@ const App = () => (
             <Route path="/pod" element={<Layout><PODCatalog /></Layout>} />
             <Route path="/pod/order" element={<Layout><PODOrder /></Layout>} />
             <Route path="/social" element={<Layout><SocialFeed /></Layout>} />
+            <Route path="/login" element={<UserLogin />} />
+            <Route path="/profile" element={<Layout><UserProfile /></Layout>} />
             <Route path="/vendor/onboarding" element={<VendorOnboarding />} />
             <Route path="/vendor/login" element={<VendorLogin />} />
             <Route path="/vendor/dashboard" element={<VendorDashboard />} />

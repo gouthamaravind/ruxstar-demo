@@ -12,11 +12,12 @@ import logoImage from '@/assets/logo.png';
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { isVendorLoggedIn, currentVendor, setCurrentVendor } = useApp();
+  const { isVendorLoggedIn, currentVendor, setCurrentVendor, isUserLoggedIn, profile, signOut } = useApp();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setCurrentVendor(null);
+    await signOut();
     navigate('/');
   };
 
@@ -61,6 +62,20 @@ export function Navbar() {
           {/* Theme Toggle & Auth - Desktop */}
           <div className="hidden md:flex items-center gap-2">
             <ThemeToggle />
+            {isUserLoggedIn ? (
+              <Button variant="ghost" asChild>
+                <Link to="/profile" className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs">
+                    {profile?.username?.charAt(0).toUpperCase() || <User className="h-4 w-4" />}
+                  </div>
+                  <span className="hidden lg:inline">{profile?.username || 'Profile'}</span>
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild size="sm">
+                <Link to="/login">Sign In</Link>
+              </Button>
+            )}
             {isVendorLoggedIn && (
               <>
                 <Button variant="ghost" asChild>
@@ -117,18 +132,33 @@ export function Navbar() {
               </div>
 
               {/* Auth - Mobile */}
-              {isVendorLoggedIn && (
-                <div className="flex flex-col gap-2">
-                  <Button variant="outline" asChild className="w-full">
-                    <Link to="/vendor/dashboard" onClick={() => setIsMenuOpen(false)}>
-                      Dashboard
+              <div className="flex flex-col gap-2">
+                {isUserLoggedIn ? (
+                  <>
+                    <Button variant="outline" asChild className="w-full">
+                      <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
+                        My Profile
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" onClick={handleLogout} className="w-full">
+                      Logout
+                    </Button>
+                  </>
+                ) : (
+                  <Button asChild className="w-full">
+                    <Link to="/login" onClick={() => setIsMenuOpen(false)}>
+                      Sign In
                     </Link>
                   </Button>
-                  <Button variant="ghost" onClick={handleLogout} className="w-full">
-                    Logout
+                )}
+                {isVendorLoggedIn && (
+                  <Button variant="outline" asChild className="w-full">
+                    <Link to="/vendor/dashboard" onClick={() => setIsMenuOpen(false)}>
+                      Vendor Dashboard
+                    </Link>
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </motion.div>
         )}
