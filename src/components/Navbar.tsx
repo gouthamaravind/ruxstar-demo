@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ModeSwitch } from './ModeSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { useApp } from '@/contexts/AppContext';
+import logoImage from '@/assets/logo.png';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -33,9 +34,7 @@ export function Navbar() {
               whileHover={{ scale: 1.05 }}
               className="flex items-center gap-2"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg">
-                R
-              </div>
+              <img src={logoImage} alt="RuxStar" className="h-10 w-10 object-contain" />
               <span className="text-xl font-bold">RuxStar</span>
             </motion.div>
           </Link>
@@ -59,10 +58,10 @@ export function Navbar() {
             <ModeSwitch />
           </div>
 
-          {/* Theme Toggle & Auth Buttons - Desktop */}
+          {/* Theme Toggle & Auth - Desktop */}
           <div className="hidden md:flex items-center gap-2">
             <ThemeToggle />
-            {isVendorLoggedIn ? (
+            {isVendorLoggedIn && (
               <>
                 <Button variant="ghost" asChild>
                   <Link to="/vendor/dashboard" className="flex items-center gap-2">
@@ -74,10 +73,6 @@ export function Navbar() {
                   <LogOut className="h-4 w-4" />
                 </Button>
               </>
-            ) : (
-              <Button asChild>
-                <Link to="/vendor/login">Vendor Login</Link>
-              </Button>
             )}
           </div>
 
@@ -122,26 +117,18 @@ export function Navbar() {
               </div>
 
               {/* Auth - Mobile */}
-              <div className="flex flex-col gap-2">
-                {isVendorLoggedIn ? (
-                  <>
-                    <Button variant="outline" asChild className="w-full">
-                      <Link to="/vendor/dashboard" onClick={() => setIsMenuOpen(false)}>
-                        Dashboard
-                      </Link>
-                    </Button>
-                    <Button variant="ghost" onClick={handleLogout} className="w-full">
-                      Logout
-                    </Button>
-                  </>
-                ) : (
-                  <Button asChild className="w-full">
-                    <Link to="/vendor/login" onClick={() => setIsMenuOpen(false)}>
-                      Vendor Login
+              {isVendorLoggedIn && (
+                <div className="flex flex-col gap-2">
+                  <Button variant="outline" asChild className="w-full">
+                    <Link to="/vendor/dashboard" onClick={() => setIsMenuOpen(false)}>
+                      Dashboard
                     </Link>
                   </Button>
-                )}
-              </div>
+                  <Button variant="ghost" onClick={handleLogout} className="w-full">
+                    Logout
+                  </Button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

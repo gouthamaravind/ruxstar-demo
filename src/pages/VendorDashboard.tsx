@@ -21,7 +21,7 @@ const STATUS_CONFIG = {
   completed: { label: 'Completed', color: 'bg-gray-500', icon: Truck },
 };
 
-type Tab = 'orders' | 'pricing' | 'capabilities' | 'profile';
+type Tab = 'orders' | 'capabilities' | 'profile';
 
 export default function VendorDashboard() {
   const navigate = useNavigate();
@@ -126,7 +126,6 @@ export default function VendorDashboard() {
           <nav className="flex-1 p-4 space-y-1">
             {[
               { id: 'orders' as Tab, icon: Package, label: 'Orders', count: orders.filter(o => o.status === 'new').length },
-              { id: 'pricing' as Tab, icon: DollarSign, label: 'Pricing' },
               { id: 'capabilities' as Tab, icon: Settings, label: 'Capabilities' },
               { id: 'profile' as Tab, icon: User, label: 'Profile' },
             ].map(item => (
@@ -154,7 +153,6 @@ export default function VendorDashboard() {
           <div className="flex">
             {[
               { id: 'orders' as Tab, icon: Package },
-              { id: 'pricing' as Tab, icon: DollarSign },
               { id: 'capabilities' as Tab, icon: Settings },
               { id: 'profile' as Tab, icon: User },
             ].map(item => (
@@ -236,19 +234,6 @@ export default function VendorDashboard() {
                     })}
                   </div>
                 )}
-              </div>
-            )}
-
-            {activeTab === 'pricing' && (
-              <div>
-                <h1 className="text-2xl font-bold mb-6">Pricing</h1>
-                <div className="bg-card rounded-xl border border-border p-6">
-                  <p className="text-muted-foreground">Your pricing configuration</p>
-                  <div className="mt-4 space-y-2">
-                    <p><strong>Rush Fee:</strong> {formatINR(currentVendor?.rush_fee || 0)}</p>
-                    <p><strong>Standard Turnaround:</strong> {currentVendor?.turnaround_days || 3} days</p>
-                  </div>
-                </div>
               </div>
             )}
 
