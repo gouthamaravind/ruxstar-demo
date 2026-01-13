@@ -209,42 +209,69 @@ export type Database = {
       products: {
         Row: {
           active: boolean | null
+          addons: Json | null
           base_price: number
           category: string
           colors: string[] | null
           created_at: string
+          finish: string[] | null
+          gsm: string[] | null
           id: string
           image: string | null
+          lamination: string[] | null
+          materials: string[] | null
           name: string
+          print_sides: string[] | null
+          quantity_slabs: Json | null
           sizes: string[] | null
           supported_print_types: string[] | null
           turnaround: string | null
+          turnaround_options: Json | null
+          variant_type: string | null
         }
         Insert: {
           active?: boolean | null
+          addons?: Json | null
           base_price: number
           category: string
           colors?: string[] | null
           created_at?: string
+          finish?: string[] | null
+          gsm?: string[] | null
           id?: string
           image?: string | null
+          lamination?: string[] | null
+          materials?: string[] | null
           name: string
+          print_sides?: string[] | null
+          quantity_slabs?: Json | null
           sizes?: string[] | null
           supported_print_types?: string[] | null
           turnaround?: string | null
+          turnaround_options?: Json | null
+          variant_type?: string | null
         }
         Update: {
           active?: boolean | null
+          addons?: Json | null
           base_price?: number
           category?: string
           colors?: string[] | null
           created_at?: string
+          finish?: string[] | null
+          gsm?: string[] | null
           id?: string
           image?: string | null
+          lamination?: string[] | null
+          materials?: string[] | null
           name?: string
+          print_sides?: string[] | null
+          quantity_slabs?: Json | null
           sizes?: string[] | null
           supported_print_types?: string[] | null
           turnaround?: string | null
+          turnaround_options?: Json | null
+          variant_type?: string | null
         }
         Relationships: []
       }
