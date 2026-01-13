@@ -3,17 +3,19 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Heart, MessageCircle, Repeat2, Share, Send, Image, 
-  BarChart3, Video, X, ChevronDown, Loader2, Play,
-  Plus, Check, Bookmark, MoreHorizontal
+  BarChart3, Video, X, Loader2, Play,
+  Plus, Bookmark, MoreHorizontal
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { fetchPosts, createPost, updatePostLikes } from '@/lib/api';
+import { useApp } from '@/contexts/AppContext';
+import { fetchPosts } from '@/lib/api';
+import { likePost, unlikePost, getUserLikedPosts, uploadSocialMedia, createSocialPost } from '@/lib/socialApi';
 import { Post, formatINR } from '@/lib/types';
+import { LoginRequiredDialog } from '@/components/LoginRequiredDialog';
 import logoImage from '@/assets/logo.png';
 
 type PostType = 'text' | 'image' | 'poll' | 'video';
@@ -26,12 +28,16 @@ interface PollOption {
 
 export default function SocialFeed() {
   const { toast } = useToast();
+  const { user, profile, isUserLoggedIn } = useApp();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [newPostContent, setNewPostContent] = useState('');
   const [postType, setPostType] = useState<PostType>('text');
   const [isExpanded, setIsExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [userLikedPosts, setUserLikedPosts] = useState<Set<string>>(new Set());
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [loginAction, setLoginAction] = useState('');
   
   // Poll state
   const [pollOptions, setPollOptions] = useState<PollOption[]>([
@@ -40,16 +46,46 @@ export default function SocialFeed() {
   ]);
   
   // Media state
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchPosts().then(setPosts).finally(() => setLoading(false));
-  }, []);
+    loadData();
+  }, [user]);
+
+  const loadData = async () => {
+    try {
+      const postsData = await fetchPosts();
+      setPosts(postsData);
+      
+      // Load user's liked posts
+      if (user?.id) {
+        const likedPostIds = await getUserLikedPosts(user.id);
+        setUserLikedPosts(new Set(likedPostIds));
+      }
+    } catch (error) {
+      console.error('Failed to load posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requireLogin = (action: string): boolean => {
+    if (!isUserLoggedIn) {
+      setLoginAction(action);
+      setShowLoginDialog(true);
+      return true;
+    }
+    return false;
+  };
 
   const handleCreatePost = async () => {
-    if (!newPostContent.trim() && postType === 'text') return;
+    if (requireLogin('create a post')) return;
+    
+    if (!newPostContent.trim() && postType === 'text' && !mediaFile) return;
     if (postType === 'poll' && pollOptions.filter(o => o.text.trim()).length < 2) {
       toast({ title: "Add at least 2 poll options", variant: "destructive" });
       return;
@@ -57,6 +93,15 @@ export default function SocialFeed() {
     
     setSubmitting(true);
     try {
+      let mediaUrl: string | undefined;
+      
+      // Upload media if exists
+      if (mediaFile && user?.id) {
+        setUploading(true);
+        mediaUrl = await uploadSocialMedia(mediaFile, user.id);
+        setUploading(false);
+      }
+      
       let content = newPostContent;
       
       // Add poll data to content if it's a poll
@@ -65,20 +110,24 @@ export default function SocialFeed() {
         content = `📊 ${newPostContent}\n\n${pollData.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}`;
       }
       
-      const newPost = await createPost({ 
-        username: 'you', 
-        user_avatar: '👤', 
+      const newPost = await createSocialPost({ 
         content,
-        media: mediaPreview ? [mediaPreview] : undefined,
+        media: mediaUrl ? [mediaUrl] : undefined,
+        profileId: profile?.id,
+        userId: user?.id,
+        username: profile?.username || 'user',
+        userAvatar: profile?.avatar_url || '👤',
       });
       
-      setPosts([newPost, ...posts]);
+      setPosts([{ ...newPost, likes: 0, comments: 0, reposts: 0 } as Post, ...posts]);
       resetForm();
       toast({ title: "Posted! 🎉", description: "Your post is now live" });
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to create post", variant: "destructive" });
+    } catch (error: any) {
+      console.error('Post error:', error);
+      toast({ title: "Error", description: error.message || "Failed to create post", variant: "destructive" });
     } finally {
       setSubmitting(false);
+      setUploading(false);
     }
   };
 
@@ -87,6 +136,7 @@ export default function SocialFeed() {
     setPostType('text');
     setIsExpanded(false);
     setMediaPreview(null);
+    setMediaFile(null);
     setMediaType(null);
     setPollOptions([
       { id: '1', text: '', votes: 0 },
@@ -94,16 +144,34 @@ export default function SocialFeed() {
     ]);
   };
 
-  const handleLike = async (postId: string, currentLikes: number) => {
+  const handleLike = async (postId: string) => {
+    if (requireLogin('like this post')) return;
+    if (!user?.id) return;
+    
+    const isLiked = userLikedPosts.has(postId);
+    
     try {
-      await updatePostLikes(postId, currentLikes + 1);
-      setPosts(posts.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+      if (isLiked) {
+        await unlikePost(postId, user.id);
+        setUserLikedPosts(prev => {
+          const next = new Set(prev);
+          next.delete(postId);
+          return next;
+        });
+        setPosts(posts.map(p => p.id === postId ? { ...p, likes: Math.max(0, p.likes - 1) } : p));
+      } else {
+        await likePost(postId, user.id);
+        setUserLikedPosts(prev => new Set(prev).add(postId));
+        setPosts(posts.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+      }
     } catch (error) {
-      console.error('Failed to like post');
+      console.error('Failed to update like:', error);
     }
   };
 
   const handleMediaSelect = (type: 'image' | 'video') => {
+    if (requireLogin('upload media')) return;
+    
     setPostType(type === 'image' ? 'image' : 'video');
     setMediaType(type);
     fileInputRef.current?.click();
@@ -112,6 +180,14 @@ export default function SocialFeed() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Validate size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 10MB allowed", variant: "destructive" });
+      return;
+    }
+    
+    setMediaFile(file);
     
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -147,6 +223,12 @@ export default function SocialFeed() {
 
   return (
     <div className="min-h-screen bg-background">
+      <LoginRequiredDialog 
+        open={showLoginDialog} 
+        onOpenChange={setShowLoginDialog}
+        action={loginAction}
+      />
+
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Header */}
         <motion.div 
@@ -161,6 +243,27 @@ export default function SocialFeed() {
               <p className="text-sm text-muted-foreground">Share & discover designs</p>
             </div>
           </div>
+          
+          {/* User Status */}
+          {isUserLoggedIn && profile ? (
+            <Link 
+              to="/profile" 
+              className="flex items-center gap-2 px-3 py-2 rounded-full bg-muted hover:bg-muted/80 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  profile.username?.charAt(0).toUpperCase()
+                )}
+              </div>
+              <span className="text-sm font-medium hidden sm:inline">@{profile.username}</span>
+            </Link>
+          ) : (
+            <Button asChild size="sm">
+              <Link to="/login">Sign In</Link>
+            </Button>
+          )}
         </motion.div>
 
         {/* Create Post Card */}
@@ -172,17 +275,32 @@ export default function SocialFeed() {
           <div className="p-4">
             <div className="flex gap-3">
               <div className="w-11 h-11 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-xl flex-shrink-0">
-                👤
+                {isUserLoggedIn && profile ? (
+                  profile.username?.charAt(0).toUpperCase() || '👤'
+                ) : '👤'}
               </div>
               <div className="flex-1">
                 <Textarea 
-                  placeholder={postType === 'poll' ? "Ask a question..." : "What's on your mind?"} 
+                  placeholder={
+                    !isUserLoggedIn 
+                      ? "Sign in to post..." 
+                      : postType === 'poll' 
+                        ? "Ask a question..." 
+                        : "What's on your mind?"
+                  } 
                   value={newPostContent} 
                   onChange={(e) => {
                     setNewPostContent(e.target.value);
                     if (!isExpanded && e.target.value) setIsExpanded(true);
                   }}
-                  onFocus={() => setIsExpanded(true)}
+                  onFocus={() => {
+                    if (!isUserLoggedIn) {
+                      setLoginAction('create a post');
+                      setShowLoginDialog(true);
+                    } else {
+                      setIsExpanded(true);
+                    }
+                  }}
                   className="border-0 resize-none focus-visible:ring-0 p-0 min-h-[50px] text-base placeholder:text-muted-foreground/60" 
                 />
 
@@ -199,7 +317,7 @@ export default function SocialFeed() {
                         <div className="aspect-video bg-muted flex items-center justify-center">
                           <div className="text-center">
                             <Play className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">Video preview</p>
+                            <p className="text-sm text-muted-foreground">Video selected</p>
                           </div>
                         </div>
                       ) : (
@@ -211,6 +329,7 @@ export default function SocialFeed() {
                         className="absolute top-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm"
                         onClick={() => {
                           setMediaPreview(null);
+                          setMediaFile(null);
                           setMediaType(null);
                           setPostType('text');
                         }}
@@ -270,7 +389,7 @@ export default function SocialFeed() {
 
           {/* Action Bar */}
           <AnimatePresence>
-            {isExpanded && (
+            {isExpanded && isUserLoggedIn && (
               <motion.div 
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -327,16 +446,16 @@ export default function SocialFeed() {
                     </Button>
                     <Button 
                       onClick={handleCreatePost} 
-                      disabled={submitting || (!newPostContent.trim() && postType !== 'poll')} 
+                      disabled={submitting || uploading || (!newPostContent.trim() && !mediaFile && postType !== 'poll')} 
                       size="sm"
                       className="gap-1.5"
                     >
-                      {submitting ? (
+                      {submitting || uploading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Send className="h-4 w-4" />
                       )}
-                      Post
+                      {uploading ? 'Uploading...' : 'Post'}
                     </Button>
                   </div>
                 </div>
@@ -381,7 +500,13 @@ export default function SocialFeed() {
                 key={post.id} 
                 post={post} 
                 index={index}
-                onLike={handleLike}
+                isLiked={userLikedPosts.has(post.id)}
+                onLike={() => handleLike(post.id)}
+                onRequireLogin={() => {
+                  setLoginAction('interact with posts');
+                  setShowLoginDialog(true);
+                }}
+                isUserLoggedIn={isUserLoggedIn}
                 formatTime={formatTime}
               />
             ))}
@@ -395,26 +520,29 @@ export default function SocialFeed() {
 function PostCard({ 
   post, 
   index, 
+  isLiked,
   onLike, 
+  onRequireLogin,
+  isUserLoggedIn,
   formatTime 
 }: { 
   post: Post; 
   index: number;
-  onLike: (id: string, likes: number) => void;
+  isLiked: boolean;
+  onLike: () => void;
+  onRequireLogin: () => void;
+  isUserLoggedIn: boolean;
   formatTime: (ts: string) => string;
 }) {
-  const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const handleLike = () => {
-    if (!liked) {
-      onLike(post.id, post.likes);
-      setLiked(true);
+  const handleAction = (action: () => void) => {
+    if (!isUserLoggedIn) {
+      onRequireLogin();
+      return;
     }
+    action();
   };
-
-  // Check if it's a poll post
-  const isPoll = post.content.startsWith('📊');
 
   return (
     <motion.article 
@@ -484,28 +612,34 @@ function PostCard({
         <div className="flex items-center justify-between">
           <motion.button 
             whileTap={{ scale: 0.9 }}
-            onClick={handleLike}
+            onClick={onLike}
             className={`flex items-center gap-2 transition-colors ${
-              liked ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'
+              isLiked ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'
             }`}
           >
-            <Heart className={`h-5 w-5 ${liked ? 'fill-current' : ''}`} />
-            <span className="text-sm font-medium">{post.likes + (liked ? 1 : 0)}</span>
+            <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="text-sm font-medium">{post.likes}</span>
           </motion.button>
           
-          <button className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors">
+          <button 
+            onClick={() => handleAction(() => {})}
+            className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+          >
             <MessageCircle className="h-5 w-5" />
             <span className="text-sm font-medium">{post.comments}</span>
           </button>
           
-          <button className="flex items-center gap-2 text-muted-foreground hover:text-green-500 transition-colors">
+          <button 
+            onClick={() => handleAction(() => {})}
+            className="flex items-center gap-2 text-muted-foreground hover:text-green-500 transition-colors"
+          >
             <Repeat2 className="h-5 w-5" />
             <span className="text-sm font-medium">{post.reposts}</span>
           </button>
           
           <div className="flex items-center gap-1">
             <button 
-              onClick={() => setSaved(!saved)}
+              onClick={() => handleAction(() => setSaved(!saved))}
               className={`p-2 rounded-full transition-colors ${
                 saved ? 'text-primary' : 'text-muted-foreground hover:text-primary'
               }`}
