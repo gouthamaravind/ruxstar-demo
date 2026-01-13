@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Vendor, getAppMode, setAppMode as saveAppMode, getCurrentVendor, setCurrentVendor as saveCurrentVendor, initializeMockData } from '@/lib/mockData';
+import { Vendor, getCurrentVendorLocal, setCurrentVendorLocal } from '@/lib/types';
 
 interface AppContextType {
   mode: 'social' | 'pod';
@@ -16,19 +16,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentVendor, setCurrentVendorState] = useState<Vendor | null>(null);
 
   useEffect(() => {
-    initializeMockData();
-    setModeState(getAppMode());
-    setCurrentVendorState(getCurrentVendor());
+    const savedMode = localStorage.getItem('ruxstar_mode') as 'social' | 'pod';
+    if (savedMode) setModeState(savedMode);
+    
+    const savedVendor = getCurrentVendorLocal();
+    if (savedVendor) setCurrentVendorState(savedVendor);
   }, []);
 
   const setMode = (newMode: 'social' | 'pod') => {
     setModeState(newMode);
-    saveAppMode(newMode);
+    localStorage.setItem('ruxstar_mode', newMode);
   };
 
   const setCurrentVendor = (vendor: Vendor | null) => {
     setCurrentVendorState(vendor);
-    saveCurrentVendor(vendor);
+    setCurrentVendorLocal(vendor);
   };
 
   return (

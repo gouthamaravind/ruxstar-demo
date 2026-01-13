@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useApp } from '@/contexts/AppContext';
-import { getOrders, saveOrders, Order } from '@/lib/mockData';
+import { fetchAllOrders, updateOrderStatus } from '@/lib/api';
+import { Order, formatINR } from '@/lib/types';
 
 const STATUS_CONFIG = {
   new: { label: 'New', color: 'bg-blue-500', icon: Package },
@@ -28,40 +29,58 @@ export default function VendorDashboard() {
   const { currentVendor, isVendorLoggedIn } = useApp();
   const [activeTab, setActiveTab] = useState<Tab>('orders');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!isVendorLoggedIn) {
-    navigate('/vendor/login');
-    return null;
-  }
-
-  const orders = getOrders().filter(o => o.vendorId === currentVendor?.id || o.vendorId === 'vendor-1');
-
-  const updateOrderStatus = (orderId: string, newStatus: Order['status']) => {
-    const allOrders = getOrders();
-    const updatedOrders = allOrders.map(o => {
-      if (o.id === orderId) {
-        return {
-          ...o,
-          status: newStatus,
-          timestamps: [...o.timestamps, { status: newStatus, time: new Date().toISOString() }]
-        };
-      }
-      return o;
-    });
-    saveOrders(updatedOrders);
-
-    if (newStatus === 'ready') {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-      toast({ title: "Order Ready! 🎉", description: "Customer has been notified" });
-    } else {
-      toast({ title: "Status Updated", description: `Order marked as ${newStatus}` });
+  useEffect(() => {
+    if (!isVendorLoggedIn) {
+      navigate('/vendor/login');
+      return;
     }
+    loadOrders();
+  }, [isVendorLoggedIn, navigate]);
 
-    setSelectedOrder(prev => prev ? { ...prev, status: newStatus } : null);
+  const loadOrders = async () => {
+    try {
+      const allOrders = await fetchAllOrders();
+      // Filter orders for this vendor or demo vendor
+      const vendorOrders = allOrders.filter(o => 
+        o.vendor_id === currentVendor?.id || 
+        (currentVendor?.email === 'demo@vendor.com')
+      );
+      setOrders(vendorOrders);
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      await updateOrderStatus(orderId, newStatus);
+      
+      if (newStatus === 'ready') {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+        toast({ title: "Order Ready! 🎉", description: "Customer has been notified" });
+      } else {
+        toast({ title: "Status Updated", description: `Order marked as ${newStatus}` });
+      }
+
+      // Refresh orders
+      await loadOrders();
+      
+      // Update selected order if open
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(prev => prev ? { ...prev, status: newStatus } : null);
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update order status", variant: "destructive" });
+    }
   };
 
   const getNextStatus = (current: Order['status']): Order['status'] | null => {
@@ -80,6 +99,10 @@ export default function VendorDashboard() {
     }
   };
 
+  if (!isVendorLoggedIn) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="flex">
@@ -95,7 +118,7 @@ export default function VendorDashboard() {
                 <p className="text-xs text-muted-foreground">{currentVendor?.city}</p>
               </div>
             </div>
-            {currentVendor?.onboardingComplete && (
+            {currentVendor?.onboarding_complete && (
               <Badge className="mt-3" variant="secondary">✓ Onboarding Complete</Badge>
             )}
           </div>
@@ -170,42 +193,49 @@ export default function VendorDashboard() {
                 </div>
 
                 {/* Orders List */}
-                <div className="space-y-3">
-                  {orders.map(order => {
-                    const config = STATUS_CONFIG[order.status];
-                    return (
-                      <motion.div
-                        key={order.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        onClick={() => setSelectedOrder(order)}
-                        className="bg-card rounded-xl border border-border p-4 cursor-pointer hover:border-primary/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-full ${config.color} bg-opacity-20 flex items-center justify-center`}>
-                            <config.icon className={`h-5 w-5 text-${config.color.replace('bg-', '')}`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-semibold truncate">{order.customerName}</p>
-                              <Badge variant="secondary" className="text-xs">{config.label}</Badge>
+                {loading ? (
+                  <div className="text-center py-10 text-muted-foreground">Loading orders...</div>
+                ) : orders.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground">No orders yet</div>
+                ) : (
+                  <div className="space-y-3">
+                    {orders.map(order => {
+                      const config = STATUS_CONFIG[order.status];
+                      const firstItem = order.order_items?.[0];
+                      return (
+                        <motion.div
+                          key={order.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          onClick={() => setSelectedOrder(order)}
+                          className="bg-card rounded-xl border border-border p-4 cursor-pointer hover:border-primary/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-full ${config.color} bg-opacity-20 flex items-center justify-center`}>
+                              <config.icon className="h-5 w-5" />
                             </div>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {order.items[0]?.productName} × {order.items[0]?.quantity}
-                            </p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold truncate">{order.customer_name}</p>
+                                <Badge variant="secondary" className="text-xs">{config.label}</Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {firstItem?.product_name || 'Order'} × {firstItem?.quantity || 1}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold">{formatINR(order.total_price)}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(order.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold">${order.totalPrice}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(order.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -213,12 +243,10 @@ export default function VendorDashboard() {
               <div>
                 <h1 className="text-2xl font-bold mb-6">Pricing</h1>
                 <div className="bg-card rounded-xl border border-border p-6">
-                  <p className="text-muted-foreground">
-                    Your pricing table with {currentVendor?.pricingTable?.length || 0} entries.
-                  </p>
+                  <p className="text-muted-foreground">Your pricing configuration</p>
                   <div className="mt-4 space-y-2">
-                    <p><strong>Rush Fee:</strong> ${currentVendor?.rushFee || 0}</p>
-                    <p><strong>Standard Turnaround:</strong> {currentVendor?.turnaroundDays || 3} days</p>
+                    <p><strong>Rush Fee:</strong> {formatINR(currentVendor?.rush_fee || 0)}</p>
+                    <p><strong>Standard Turnaround:</strong> {currentVendor?.turnaround_days || 3} days</p>
                   </div>
                 </div>
               </div>
@@ -312,30 +340,34 @@ export default function VendorDashboard() {
                     <div className="space-y-2 text-sm">
                       <p className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        {selectedOrder.customerName}
+                        {selectedOrder.customer_name}
                       </p>
-                      <p className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        {selectedOrder.customerPhone}
-                      </p>
-                      <p className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        {selectedOrder.customerEmail}
-                      </p>
+                      {selectedOrder.customer_phone && (
+                        <p className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          {selectedOrder.customer_phone}
+                        </p>
+                      )}
+                      {selectedOrder.customer_email && (
+                        <p className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          {selectedOrder.customer_email}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   {/* Items */}
                   <div className="bg-muted/50 rounded-xl p-4 mb-6">
                     <h3 className="font-semibold mb-3">Order Items</h3>
-                    {selectedOrder.items.map((item, i) => (
+                    {selectedOrder.order_items?.map((item, i) => (
                       <div key={i} className="space-y-1 text-sm">
-                        <p className="font-medium">{item.productName}</p>
+                        <p className="font-medium">{item.product_name}</p>
                         <p className="text-muted-foreground">
                           {item.quantity} × {item.size} / {item.color}
                         </p>
                         <p className="text-muted-foreground">
-                          {item.printType} • {item.placement}
+                          {item.print_type} • {item.placement}
                         </p>
                       </div>
                     ))}
@@ -346,7 +378,7 @@ export default function VendorDashboard() {
                     <h3 className="font-semibold mb-3">Design File</h3>
                     <p className="flex items-center gap-2 text-sm text-primary">
                       <FileText className="h-4 w-4" />
-                      {selectedOrder.fileUrl}
+                      {selectedOrder.file_url || 'No file uploaded'}
                     </p>
                     {selectedOrder.notes && (
                       <div className="mt-3 pt-3 border-t border-border">
@@ -360,12 +392,12 @@ export default function VendorDashboard() {
                   <div className="mb-6">
                     <h3 className="font-semibold mb-3">Timeline</h3>
                     <div className="space-y-3">
-                      {selectedOrder.timestamps.map((ts, i) => (
+                      {selectedOrder.order_timeline?.map((ts, i) => (
                         <div key={i} className="flex items-center gap-3 text-sm">
                           <div className={`w-2 h-2 rounded-full ${STATUS_CONFIG[ts.status as keyof typeof STATUS_CONFIG]?.color || 'bg-gray-400'}`} />
                           <span className="capitalize">{ts.status}</span>
                           <span className="text-muted-foreground">
-                            {new Date(ts.time).toLocaleString()}
+                            {new Date(ts.timestamp).toLocaleString()}
                           </span>
                         </div>
                       ))}
@@ -375,7 +407,7 @@ export default function VendorDashboard() {
                   {/* Total */}
                   <div className="flex justify-between items-center text-lg font-semibold mb-6 p-4 bg-primary/5 rounded-xl">
                     <span>Total</span>
-                    <span>${selectedOrder.totalPrice}</span>
+                    <span>{formatINR(selectedOrder.total_price)}</span>
                   </div>
 
                   {/* Action Button */}
@@ -383,10 +415,9 @@ export default function VendorDashboard() {
                     <Button
                       className="w-full"
                       size="lg"
-                      variant={selectedOrder.status === 'printing' ? 'default' : 'default'}
                       onClick={() => {
                         const next = getNextStatus(selectedOrder.status);
-                        if (next) updateOrderStatus(selectedOrder.id, next);
+                        if (next) handleUpdateStatus(selectedOrder.id, next);
                       }}
                     >
                       {getStatusAction(selectedOrder.status)}
