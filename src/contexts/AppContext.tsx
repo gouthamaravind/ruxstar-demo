@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Vendor, getCurrentVendorLocal, setCurrentVendorLocal } from '@/lib/types';
-import { User, Session } from '@supabase/supabase-js';
+import type { User, Session } from '@supabase/supabase-js';
 
-interface Profile {
+export interface Profile {
   id: string;
   user_id: string;
   username: string;
