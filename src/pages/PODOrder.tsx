@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Upload, ArrowLeft, ShoppingCart } from 'lucide-react';
+import { Upload, ArrowLeft, ShoppingCart, X, FileImage, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { fetchProducts, fetchVendors, createOrder, createOrderItem } from '@/lib/api';
 import { Product, Vendor, PLACEMENTS, formatINR } from '@/lib/types';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function PODOrder() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function PODOrder() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   
   const preselectedProductId = searchParams.get('product') || '';
   const [selectedProductId, setSelectedProductId] = useState(preselectedProductId);
@@ -29,7 +31,7 @@ export default function PODOrder() {
   const [printType, setPrintType] = useState('');
   const [placement, setPlacement] = useState('Front');
   const [notes, setNotes] = useState('');
-  const [fileName, setFileName] = useState('');
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; url: string } | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
@@ -56,9 +58,44 @@ export default function PODOrder() {
     return { base: basePrice * quantity, print: printFee * quantity, discount, discountPercent, total: subtotal - discount };
   }, [selectedProduct, quantity, printType]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setFileName(file.name);
+    if (!file) return;
+    
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum file size is 10MB", variant: "destructive" });
+      return;
+    }
+    
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `orders/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('designs')
+        .upload(filePath, file);
+        
+      if (uploadError) throw uploadError;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('designs')
+        .getPublicUrl(filePath);
+      
+      setUploadedFile({ name: file.name, url: publicUrl });
+      toast({ title: "File uploaded!", description: file.name });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({ title: "Upload failed", description: "Could not upload file", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedFile(null);
   };
 
   const handleSubmit = async () => {
@@ -76,7 +113,7 @@ export default function PODOrder() {
         customer_phone: customerPhone,
         customer_email: customerEmail,
         notes,
-        file_url: fileName || 'design.png',
+        file_url: uploadedFile?.url || null,
         total_price: pricing.total,
       });
 
@@ -144,10 +181,43 @@ export default function PODOrder() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-card rounded-2xl border border-border p-6 shadow-card">
               <h2 className="text-lg font-semibold mb-4">Design Upload</h2>
-              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
-                <input type="file" id="design-upload" accept="image/*,.pdf,.ai,.psd" onChange={handleFileChange} className="hidden" />
-                <label htmlFor="design-upload" className="cursor-pointer"><Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />{fileName ? <p className="font-medium text-primary">{fileName}</p> : <><p className="font-medium">Click to upload design</p><p className="text-sm text-muted-foreground mt-1">PNG, JPG, PDF, AI, PSD</p></>}</label>
-              </div>
+              {uploadedFile ? (
+                <div className="border border-border rounded-xl p-4 bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <FileImage className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{uploadedFile.name}</p>
+                      <p className="text-sm text-muted-foreground">Uploaded successfully</p>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={handleRemoveFile} className="shrink-0">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {uploadedFile.url.match(/\.(jpg|jpeg|png|gif|webp)$/i) && (
+                    <img src={uploadedFile.url} alt="Preview" className="mt-3 rounded-lg max-h-40 object-contain mx-auto" />
+                  )}
+                </div>
+              ) : (
+                <div className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${uploading ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/50'}`}>
+                  <input type="file" id="design-upload" accept="image/*,.pdf,.ai,.psd" onChange={handleFileChange} className="hidden" disabled={uploading} />
+                  <label htmlFor="design-upload" className={uploading ? '' : 'cursor-pointer'}>
+                    {uploading ? (
+                      <>
+                        <Loader2 className="h-10 w-10 mx-auto text-primary animate-spin mb-3" />
+                        <p className="font-medium">Uploading...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                        <p className="font-medium">Click to upload design</p>
+                        <p className="text-sm text-muted-foreground mt-1">PNG, JPG, PDF, AI, PSD (max 10MB)</p>
+                      </>
+                    )}
+                  </label>
+                </div>
+              )}
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-card rounded-2xl border border-border p-6 shadow-card">
