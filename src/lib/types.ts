@@ -26,15 +26,41 @@ export interface VendorPricing {
   created_at: string;
 }
 
+export interface TurnaroundOption {
+  label: string;
+  days: number;
+  price_multiplier: number;
+}
+
+export interface QuantitySlab {
+  min: number;
+  max: number;
+  price_per_unit: number;
+}
+
+export interface Addon {
+  name: string;
+  price: number;
+}
+
 export interface Product {
   id: string;
   name: string;
   category: string;
+  variant_type: string | null;
   base_price: number;
   supported_print_types: string[];
   sizes: string[];
   colors: string[];
+  materials: string[];
+  gsm: string[];
+  finish: string[];
+  lamination: string[];
+  print_sides: string[];
   turnaround: string;
+  turnaround_options: TurnaroundOption[];
+  quantity_slabs: QuantitySlab[];
+  addons: Addon[];
   image: string;
   active: boolean;
   created_at: string;
@@ -95,12 +121,28 @@ export interface Post {
 }
 
 // Constants
-export const PRINT_TYPES = ['DTF', 'DTG', 'Screen Print', 'Sublimation', 'UV Print', 'Embroidery', 'Vinyl'];
-export const CATEGORIES = ['T-Shirts', 'Hoodies', 'Mugs', 'Stickers', 'Posters', 'Caps', 'Business Cards'];
-export const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-export const COLORS = ['White', 'Black', 'Navy', 'Gray', 'Red', 'Blue', 'Green'];
-export const PLACEMENTS = ['Front', 'Back', 'Left Sleeve', 'Right Sleeve', 'Full Body'];
-export const TURNAROUNDS = ['Same Day', '24 Hours', '2-3 Days', '5-7 Days'];
+export const PRINT_TYPES = ['DTF', 'DTG', 'Screen Print', 'Sublimation', 'UV Print', 'Embroidery', 'Vinyl', 'Offset', 'Digital'];
+export const CATEGORIES = ['T-Shirts', 'Hoodies & Sweatshirts', 'Mugs & Drinkware', 'Stickers & Labels', 'Posters & Signage', 'Caps & Accessories', 'Business Cards', 'Paper & Stationery'];
+export const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL'];
+export const COLORS = ['White', 'Black', 'Navy', 'Gray', 'Red', 'Blue', 'Green', 'Maroon', 'Yellow', 'Orange', 'Pink', 'Purple'];
+export const PLACEMENTS = ['Front', 'Back', 'Left Sleeve', 'Right Sleeve', 'Full Body', 'Pocket', 'Collar'];
+export const TURNAROUNDS = ['Same Day', '24 Hours', '2-3 Days', '5-7 Days', '7-10 Days'];
+export const FINISHES = ['Matte', 'Glossy', 'Satin', 'Textured', 'Velvet', 'Spot UV'];
+export const LAMINATIONS = ['None', 'Matte Lamination', 'Gloss Lamination', 'Soft Touch'];
+export const MATERIALS = ['Cotton', 'Polyester', 'Cotton Blend', 'Tri-Blend', 'Ceramic', 'Stainless Steel', 'Glass', 'Paper', 'Vinyl'];
+export const GSM_OPTIONS = ['80 GSM', '120 GSM', '170 GSM', '250 GSM', '300 GSM', '350 GSM', '400 GSM'];
+
+// Category icons for UI
+export const CATEGORY_ICONS: Record<string, string> = {
+  'T-Shirts': '👕',
+  'Hoodies & Sweatshirts': '🧥',
+  'Mugs & Drinkware': '☕',
+  'Stickers & Labels': '🏷️',
+  'Posters & Signage': '🖼️',
+  'Caps & Accessories': '🧢',
+  'Business Cards': '💼',
+  'Paper & Stationery': '📄',
+};
 
 // Currency formatter for INR
 export const formatINR = (amount: number): string => {
