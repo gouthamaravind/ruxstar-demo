@@ -18,13 +18,26 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const getRouterBasename = () => {
+  const viteBase = import.meta.env.BASE_URL;
+
+  // In dev this is typically "/"; if set to a concrete path, prefer it.
+  if (viteBase && viteBase !== "./") return viteBase;
+
+  // When Vite base is relative ("./"), pick a basename at runtime.
+  if (typeof window === "undefined") return "/";
+
+  const repoBase = "/ruxstar-demo/";
+  return window.location.pathname.startsWith(repoBase) ? repoBase : "/";
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AppProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <BrowserRouter basename={getRouterBasename()}>
           <Routes>
             <Route path="/" element={<Layout><HomePage /></Layout>} />
             <Route path="/pod" element={<Layout><PODCatalog /></Layout>} />
