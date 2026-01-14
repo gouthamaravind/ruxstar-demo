@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ModeSwitch } from './ModeSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { useApp } from '@/contexts/AppContext';
-import logoImage from '@/assets/logo.png';
+import logoImage from '@/assets/logo.svg';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
