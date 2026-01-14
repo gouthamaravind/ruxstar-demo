@@ -20,7 +20,7 @@ import {
 import { Post } from '@/lib/types';
 import { LoginRequiredDialog } from '@/components/LoginRequiredDialog';
 import { PostCard } from '@/components/social/PostCard';
-import logoImage from '@/assets/logo.png';
+import logoImage from '@/assets/logo.svg';
 
 type PostType = 'text' | 'image' | 'poll' | 'video';
 
