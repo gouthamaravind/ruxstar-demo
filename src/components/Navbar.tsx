@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ModeSwitch } from './ModeSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { useApp } from '@/contexts/AppContext';
-import logoImage from '@/assets/logo.svg';
+import { Logo } from './Logo';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -35,7 +35,7 @@ export function Navbar() {
               whileHover={{ scale: 1.05 }}
               className="flex items-center gap-2"
             >
-              <img src={logoImage} alt="RuxStar" className="h-10 w-10 object-contain" />
+              <Logo className="h-10 w-10" />
               <span className="text-xl font-bold">RuxStar</span>
             </motion.div>
           </Link>

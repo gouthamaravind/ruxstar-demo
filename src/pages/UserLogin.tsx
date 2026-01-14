@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import logoImage from '@/assets/logo.png';
+import { Logo } from '@/components/Logo';
 
 type AuthMode = 'login' | 'signup';
 
@@ -91,7 +91,7 @@ export default function UserLogin() {
         <div className="bg-card rounded-2xl border border-border shadow-xl p-8">
           {/* Logo & Header */}
           <div className="text-center mb-8">
-            <img src={logoImage} alt="RuxStar" className="h-16 w-16 mx-auto mb-4" />
+            <Logo className="h-16 w-16 mx-auto mb-4" />
             <h1 className="text-2xl font-bold">
               {mode === 'login' ? 'Welcome Back' : 'Create Account'}
             </h1>
