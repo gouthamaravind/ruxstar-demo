@@ -286,25 +286,30 @@ export default function SocialFeed() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
       <LoginRequiredDialog 
         open={showLoginDialog} 
         onOpenChange={setShowLoginDialog}
         action={loginAction}
       />
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Header */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }} 
           animate={{ opacity: 1, y: 0 }} 
-          className="flex items-center justify-between mb-6"
+          className="flex items-center justify-between mb-8"
         >
-          <div className="flex items-center gap-3">
-            <img src={logoImage} alt="RuxStar" className="h-10 w-10 object-contain" />
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
+              <img src={logoImage} alt="RuxStar" className="relative h-12 w-12 object-contain drop-shadow-lg" />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold">Social Feed</h1>
-              <p className="text-sm text-muted-foreground">Share & discover designs</p>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                Social Feed
+              </h1>
+              <p className="text-sm text-muted-foreground font-medium">Share & discover amazing designs</p>
             </div>
           </div>
           
@@ -312,19 +317,19 @@ export default function SocialFeed() {
           {isUserLoggedIn && profile ? (
             <Link 
               to="/profile" 
-              className="flex items-center gap-2 px-3 py-2 rounded-full bg-muted hover:bg-muted/80 transition-colors"
+              className="group flex items-center gap-3 px-4 py-2.5 rounded-full bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 hover:border-primary/40 hover:from-primary/15 hover:to-accent/15 transition-all duration-300"
             >
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-sm font-semibold text-primary-foreground ring-2 ring-background shadow-lg">
                 {profile.avatar_url ? (
                   <img src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
                 ) : (
                   profile.username?.charAt(0).toUpperCase()
                 )}
               </div>
-              <span className="text-sm font-medium hidden sm:inline">@{profile.username}</span>
+              <span className="text-sm font-semibold hidden sm:inline group-hover:text-primary transition-colors">@{profile.username}</span>
             </Link>
           ) : (
-            <Button asChild size="sm">
+            <Button asChild className="rounded-full px-6 shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-shadow">
               <Link to="/login">Sign In</Link>
             </Button>
           )}
@@ -334,11 +339,14 @@ export default function SocialFeed() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
           animate={{ opacity: 1, y: 0 }} 
-          className="bg-card rounded-2xl border border-border shadow-sm mb-6 overflow-hidden"
+          className="relative bg-card rounded-3xl border border-border/50 shadow-xl shadow-black/5 mb-8 overflow-hidden"
         >
-          <div className="p-4">
-            <div className="flex gap-3">
-              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-xl flex-shrink-0">
+          {/* Decorative gradient border effect */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 pointer-events-none" />
+          
+          <div className="relative p-5">
+            <div className="flex gap-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-lg font-semibold text-primary-foreground flex-shrink-0 ring-4 ring-primary/10 shadow-lg">
                 {isUserLoggedIn && profile ? (
                   profile.avatar_url ? (
                     <img src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
@@ -351,10 +359,10 @@ export default function SocialFeed() {
                 <Textarea 
                   placeholder={
                     !isUserLoggedIn 
-                      ? "Sign in to post..." 
+                      ? "Sign in to share your thoughts..." 
                       : postType === 'poll' 
-                        ? "Ask a question..." 
-                        : "What's on your mind?"
+                        ? "Ask your community a question..." 
+                        : "What's on your mind today?"
                   } 
                   value={newPostContent} 
                   onChange={(e) => {
@@ -369,7 +377,7 @@ export default function SocialFeed() {
                       setIsExpanded(true);
                     }
                   }}
-                  className="border-0 resize-none focus-visible:ring-0 p-0 min-h-[50px] text-base placeholder:text-muted-foreground/60" 
+                  className="border-0 resize-none focus-visible:ring-0 p-0 min-h-[60px] text-base placeholder:text-muted-foreground/50 bg-transparent" 
                 />
 
                 {/* Media Preview */}
@@ -462,9 +470,9 @@ export default function SocialFeed() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="px-4 pb-4"
+                className="relative px-5 pb-5"
               >
-                <div className="flex items-center justify-between pt-3 border-t border-border">
+                <div className="flex items-center justify-between pt-4 border-t border-border/50">
                   <div className="flex items-center gap-1">
                     <input 
                       type="file" 
@@ -477,7 +485,7 @@ export default function SocialFeed() {
                       variant={postType === 'image' ? 'secondary' : 'ghost'} 
                       size="sm"
                       onClick={() => handleMediaSelect('image')}
-                      className="gap-1.5"
+                      className={`gap-2 rounded-full ${postType === 'image' ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20' : ''}`}
                     >
                       <Image className="h-4 w-4 text-green-500" />
                       <span className="hidden sm:inline">Image</span>
@@ -486,7 +494,7 @@ export default function SocialFeed() {
                       variant={postType === 'video' ? 'secondary' : 'ghost'} 
                       size="sm"
                       onClick={() => handleMediaSelect('video')}
-                      className="gap-1.5"
+                      className={`gap-2 rounded-full ${postType === 'video' ? 'bg-purple-500/10 text-purple-600 hover:bg-purple-500/20' : ''}`}
                     >
                       <Video className="h-4 w-4 text-purple-500" />
                       <span className="hidden sm:inline">Video</span>
@@ -495,7 +503,7 @@ export default function SocialFeed() {
                       variant={postType === 'poll' ? 'secondary' : 'ghost'} 
                       size="sm"
                       onClick={() => setPostType(postType === 'poll' ? 'text' : 'poll')}
-                      className="gap-1.5"
+                      className={`gap-2 rounded-full ${postType === 'poll' ? 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20' : ''}`}
                     >
                       <BarChart3 className="h-4 w-4 text-orange-500" />
                       <span className="hidden sm:inline">Poll</span>
@@ -509,6 +517,7 @@ export default function SocialFeed() {
                         setIsExpanded(false);
                         resetForm();
                       }}
+                      className="rounded-full text-muted-foreground hover:text-foreground"
                     >
                       Cancel
                     </Button>
@@ -516,7 +525,7 @@ export default function SocialFeed() {
                       onClick={handleCreatePost} 
                       disabled={submitting || uploading || (!newPostContent.trim() && !mediaFile && postType !== 'poll')} 
                       size="sm"
-                      className="gap-1.5"
+                      className="gap-2 rounded-full px-5 shadow-lg shadow-primary/25"
                     >
                       {submitting || uploading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -534,35 +543,52 @@ export default function SocialFeed() {
 
         {/* Posts Feed */}
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-card rounded-2xl border border-border p-4 animate-pulse">
-                <div className="flex gap-3 mb-4">
-                  <div className="w-11 h-11 rounded-full bg-muted" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-muted rounded w-32" />
-                    <div className="h-3 bg-muted rounded w-20" />
+              <div key={i} className="bg-card rounded-3xl border border-border/50 p-5 shadow-lg shadow-black/5 animate-pulse">
+                <div className="flex gap-4 mb-5">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-muted to-muted/50" />
+                  <div className="flex-1 space-y-2 pt-1">
+                    <div className="h-4 bg-muted rounded-full w-32" />
+                    <div className="h-3 bg-muted/70 rounded-full w-20" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="h-4 bg-muted rounded w-full" />
-                  <div className="h-4 bg-muted rounded w-3/4" />
+                <div className="space-y-3">
+                  <div className="h-4 bg-muted rounded-full w-full" />
+                  <div className="h-4 bg-muted/80 rounded-full w-4/5" />
+                  <div className="h-4 bg-muted/60 rounded-full w-2/3" />
+                </div>
+                <div className="mt-5 pt-4 border-t border-border/30 flex justify-between">
+                  <div className="h-8 w-20 bg-muted/50 rounded-full" />
+                  <div className="h-8 w-20 bg-muted/50 rounded-full" />
+                  <div className="h-8 w-20 bg-muted/50 rounded-full" />
+                  <div className="h-8 w-16 bg-muted/50 rounded-full" />
                 </div>
               </div>
             ))}
           </div>
         ) : posts.length === 0 ? (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-20 px-8"
           >
-            <div className="text-6xl mb-4">📝</div>
-            <h3 className="text-lg font-semibold mb-2">No posts yet</h3>
-            <p className="text-muted-foreground">Be the first to share something!</p>
+            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 mb-6">
+              <span className="text-5xl">✨</span>
+            </div>
+            <h3 className="text-xl font-bold mb-3">No posts yet</h3>
+            <p className="text-muted-foreground max-w-sm mx-auto">Be the first to share something amazing with the community!</p>
+            {isUserLoggedIn && (
+              <Button 
+                onClick={() => setIsExpanded(true)} 
+                className="mt-6 rounded-full px-8 shadow-lg shadow-primary/25"
+              >
+                Create your first post
+              </Button>
+            )}
           </motion.div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {posts.map((post, index) => (
               <PostCard 
                 key={post.id} 
