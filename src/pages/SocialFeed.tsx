@@ -20,7 +20,7 @@ import {
 import { Post } from '@/lib/types';
 import { LoginRequiredDialog } from '@/components/LoginRequiredDialog';
 import { PostCard } from '@/components/social/PostCard';
-import logoImage from '@/assets/logo.svg';
+import { Logo } from '@/components/Logo';
 
 type PostType = 'text' | 'image' | 'poll' | 'video';
 
@@ -303,7 +303,7 @@ export default function SocialFeed() {
           <div className="flex items-center gap-4">
             <div className="relative">
               <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
-              <img src={logoImage} alt="RuxStar" className="relative h-12 w-12 object-contain drop-shadow-lg" />
+              <Logo className="relative h-12 w-12 drop-shadow-lg" />
             </div>
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">

@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useApp } from '@/contexts/AppContext';
 import { supabase } from '@/integrations/supabase/client';
-import logoImage from '@/assets/logo.png';
+import { Logo } from '@/components/Logo';
 
 export default function UserProfile() {
   const navigate = useNavigate();
